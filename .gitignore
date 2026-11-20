@@ -1,0 +1,23 @@
+# Environment Variables (PENTING!)
+.env
+
+# Binary hasil build (diawali "/" agar hanya mengabaikan root,
+# bukan folder internal/server/ dan sejenisnya)
+/server
+/server.exe
+/main
+/main.exe
+/app
+/app.exe
+
+# Test & coverage
+*.test
+*.out
+coverage.out
+coverage.html
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
