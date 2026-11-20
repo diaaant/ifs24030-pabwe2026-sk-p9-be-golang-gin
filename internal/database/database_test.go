@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -364,4 +365,55 @@ func TestConnectOrCreate_ReportsBothFailures(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "gagal terhubung ke PostgreSQL")
 	assert.Contains(t, err.Error(), "pembuatan database otomatis juga gagal")
+}
+
+// ---------- MySQL ----------
+
+func TestMySQLDSN(t *testing.T) {
+	cfg := &config.Config{DBHost: "db.local", DBPort: "3306", DBUsername: "u", DBPassword: "p@ss/w:rd", DBDatabase: "blog"}
+
+	dsn := mysqlDSN(cfg)
+
+	assert.Contains(t, dsn, "tcp(db.local:3306)/blog")
+	assert.Contains(t, dsn, "parseTime=true")
+	assert.Contains(t, dsn, "charset=utf8mb4")
+	parsed, err := mysqldriver.ParseDSN(dsn)
+	require.NoError(t, err)
+	assert.Equal(t, "p@ss/w:rd", parsed.Passwd)
+}
+
+func TestConnect_MySQLUsesMySQLDialector(t *testing.T) {
+	original := openMySQL
+	t.Cleanup(func() { openMySQL = original })
+	var gotDSN string
+	openMySQL = func(dsn string) gorm.Dialector {
+		gotDSN = dsn
+		return sqlite.Open(":memory:")
+	}
+
+	db, err := Connect(&config.Config{DBConnection: "mysql", DBHost: "h", DBPort: "3306", DBUsername: "u", DBDatabase: "d"})
+
+	require.NoError(t, err)
+	assert.NotNil(t, db)
+	assert.Contains(t, gotDSN, "tcp(h:3306)/d")
+}
+
+func TestConnect_MySQLError(t *testing.T) {
+	cfg := &config.Config{DBConnection: "mysql", DBHost: "127.0.0.1", DBPort: "1", DBUsername: "u", DBPassword: "p", DBDatabase: "d"}
+
+	db, err := Connect(cfg)
+
+	assert.Nil(t, db)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gagal terhubung ke MySQL")
+}
+
+func TestConnectOrCreate_MySQLDoesNotTryToCreate(t *testing.T) {
+	cfg := &config.Config{DBConnection: "mysql", DBHost: "127.0.0.1", DBPort: "1", DBUsername: "u", DBPassword: "p", DBDatabase: "d"}
+
+	db, err := ConnectOrCreate(cfg)
+
+	assert.Nil(t, db)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "pembuatan database otomatis")
 }

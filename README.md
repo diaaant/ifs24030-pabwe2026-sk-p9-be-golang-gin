@@ -42,3 +42,10 @@ Biner membaca `.env` dari direktori aktif.
 Biner membaca variabel dari lingkungan (berkas `.env` tidak ikut ke server):
 `APP_PORT` atau `PORT` (default 8080), `JWT_SECRET` atau `APP_KEY`, `DB_*`, `OPENAI_*`,
 `SEARCH_ENGINE_ENDPOINT`. Database target dibuat otomatis bila belum ada.
+
+## Pilihan database (PostgreSQL atau MySQL/MariaDB)
+
+Driver dipilih dari `DB_CONNECTION`: `pgsql` (default) atau `mysql`/`mariadb`.
+Variabel lain sama: `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`.
+Untuk database terkelola (MySQL) platform menyediakan databasenya; backend hanya membuat tabel
+dan akun bawaan secara otomatis saat start.

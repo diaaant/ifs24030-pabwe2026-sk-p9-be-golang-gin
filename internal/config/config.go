@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -69,6 +70,12 @@ func (c *Config) DSN() string {
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta",
 		c.DBHost, c.DBUsername, c.DBPassword, c.DBDatabase, c.DBPort, c.DBSSLMode,
 	)
+}
+
+// UsesMySQL true bila DB_CONNECTION bernilai mysql atau mariadb (tidak peka huruf besar/kecil).
+func (c *Config) UsesMySQL() bool {
+	driver := strings.ToLower(strings.TrimSpace(c.DBConnection))
+	return driver == "mysql" || driver == "mariadb"
 }
 
 // getEnv mengembalikan nilai variabel lingkungan, atau fallback jika kosong/tidak ada.

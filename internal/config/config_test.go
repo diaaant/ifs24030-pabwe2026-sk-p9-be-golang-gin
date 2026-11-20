@@ -175,3 +175,11 @@ func TestLoadConfig_PlatformVariables(t *testing.T) {
 	require.NoError(t, os.Setenv("JWT_SECRET", "jwt-secret"))
 	assert.Equal(t, "jwt-secret", LoadConfig().AppKey)
 }
+
+func TestConfig_UsesMySQL(t *testing.T) {
+	for driver, want := range map[string]bool{
+		"mysql": true, "MySQL": true, " mariadb ": true, "pgsql": false, "": false,
+	} {
+		assert.Equal(t, want, (&Config{DBConnection: driver}).UsesMySQL(), driver)
+	}
+}

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -61,18 +63,43 @@ var (
 	openDialector = func(dsn string) gorm.Dialector {
 		return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
 	}
+	openMySQL = func(dsn string) gorm.Dialector {
+		return mysql.Open(dsn)
+	}
 	openSQLite = func(cfg *gorm.Config) (*gorm.DB, error) {
 		return gorm.Open(sqlite.Open(":memory:"), cfg)
 	}
 )
 
-// Connect membuka koneksi ke PostgreSQL berdasarkan konfigurasi.
+// mysqlDSN membentuk DSN MySQL/MariaDB (utf8mb4, parseTime) dengan escaping aman.
+func mysqlDSN(cfg *config.Config) string {
+	return (&mysqldriver.Config{
+		User:                 cfg.DBUsername,
+		Passwd:               cfg.DBPassword,
+		Net:                  "tcp",
+		Addr:                 cfg.DBHost + ":" + cfg.DBPort,
+		DBName:               cfg.DBDatabase,
+		ParseTime:            true,
+		Loc:                  time.Local,
+		AllowNativePasswords: true,
+		Params:               map[string]string{"charset": "utf8mb4"},
+	}).FormatDSN()
+}
+
+// Connect membuka koneksi ke PostgreSQL (default) atau MySQL/MariaDB sesuai DB_CONNECTION.
 func Connect(cfg *config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(openDialector(cfg.DSN()), &gorm.Config{
+	engine := "PostgreSQL"
+	dialector := openDialector(cfg.DSN())
+	if cfg.UsesMySQL() {
+		engine = "MySQL"
+		dialector = openMySQL(mysqlDSN(cfg))
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("gagal terhubung ke PostgreSQL: %w", err)
+		return nil, fmt.Errorf("gagal terhubung ke %s: %w", engine, err)
 	}
 	return db, nil
 }
@@ -113,8 +140,10 @@ func EnsureDatabase(cfg *config.Config) error {
 // database pemeliharaan "postgres" tidak pernah disentuh.
 func ConnectOrCreate(cfg *config.Config) (*gorm.DB, error) {
 	db, err := Connect(cfg)
-	if err == nil {
-		return db, nil
+	// MySQL/MariaDB terkelola selalu menyediakan databasenya; pembuatan otomatis
+	// hanya relevan untuk PostgreSQL.
+	if err == nil || cfg.UsesMySQL() {
+		return db, err
 	}
 	if ensureErr := EnsureDatabase(cfg); ensureErr != nil {
 		return nil, fmt.Errorf("%w (pembuatan database otomatis juga gagal: %v)", err, ensureErr)
