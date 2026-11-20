@@ -67,7 +67,7 @@ func LoadConfig() *Config {
 // DSN membentuk connection string PostgreSQL (format key=value).
 func (c *Config) DSN() string {
 	return fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Jakarta default_query_exec_mode=simple_protocol",
 		c.DBHost, c.DBUsername, c.DBPassword, c.DBDatabase, c.DBPort, c.DBSSLMode,
 	)
 }
