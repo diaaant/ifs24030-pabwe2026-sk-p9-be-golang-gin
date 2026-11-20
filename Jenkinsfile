@@ -134,6 +134,7 @@ pipeline {
 
                     echo "=== Binary Created ==="
                     ls -lh server
+                    apk add --no-cache file
                     file server || true
                 '''
             }
@@ -557,6 +558,7 @@ pipeline {
             echo "       ⚠️ PIPELINE UNSTABLE"
             echo "=========================================="
             echo "Result: ${currentBuild.currentResult}"
+            echo "Periksa log stage yang merah / Console Output untuk penyebab gagal."
         }
     }
 }
