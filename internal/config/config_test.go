@@ -143,7 +143,8 @@ func TestConfig_DSN(t *testing.T) {
 	}
 
 	assert.Equal(t,
-		"host=localhost user=postgres password=secret dbname=blog port=5432 sslmode=disable TimeZone=Asia/Jakarta",
+		// PERUBAHAN ADA DI BARIS DI BAWAH INI (default_query_exec_mode=simple_protocol)
+		"host=localhost user=postgres password=secret dbname=blog port=5432 sslmode=disable TimeZone=Asia/Jakarta default_query_exec_mode=simple_protocol",
 		cfg.DSN(),
 	)
 }
