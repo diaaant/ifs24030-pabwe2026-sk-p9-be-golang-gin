@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -246,4 +247,121 @@ func TestSchema_UserDeleteCascadesPosts(t *testing.T) {
 	var posts int64
 	require.NoError(t, db.Model(&Post{}).Count(&posts).Error)
 	assert.Equal(t, int64(0), posts)
+}
+
+// ---------- EnsureDatabase ----------
+
+// useSQLiteFile mengalihkan koneksi ke berkas SQLite sementara yang sudah
+// berisi tabel pg_database tiruan (dengan baris untuk nama yang diberikan).
+func useSQLiteFile(t *testing.T, existing ...string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "maintenance.db")
+
+	seed, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, seed.Exec("CREATE TABLE pg_database (datname text)").Error)
+	for _, name := range existing {
+		require.NoError(t, seed.Exec("INSERT INTO pg_database (datname) VALUES (?)", name).Error)
+	}
+	sqlDB, _ := seed.DB()
+	require.NoError(t, sqlDB.Close())
+
+	original := openDialector
+	t.Cleanup(func() { openDialector = original })
+	openDialector = func(string) gorm.Dialector { return sqlite.Open(path) }
+}
+
+func TestEnsureDatabase_AlreadyExists(t *testing.T) {
+	useSQLiteFile(t, "pabwe_p9_blog")
+
+	assert.NoError(t, EnsureDatabase(&config.Config{DBDatabase: "pabwe_p9_blog"}))
+}
+
+func TestEnsureDatabase_IssuesCreateWhenMissing(t *testing.T) {
+	useSQLiteFile(t) // pg_database kosong -> database belum ada
+
+	// SQLite tidak mengenal CREATE DATABASE sehingga error sintaks diharapkan;
+	// yang diuji: perintah CREATE dijalankan dengan nama yang di-quote aman.
+	err := EnsureDatabase(&config.Config{DBDatabase: `weird"name`})
+
+	assert.Error(t, err)
+}
+
+func TestEnsureDatabase_LookupError(t *testing.T) {
+	original := openDialector
+	t.Cleanup(func() { openDialector = original })
+	openDialector = func(string) gorm.Dialector { return sqlite.Open(":memory:") } // tanpa tabel pg_database
+
+	assert.Error(t, EnsureDatabase(&config.Config{DBDatabase: "x"}))
+}
+
+func TestEnsureDatabase_ConnectionError(t *testing.T) {
+	cfg := &config.Config{
+		DBHost: "127.0.0.1", DBPort: "1", DBUsername: "u", DBPassword: "p", DBDatabase: "d", DBSSLMode: "disable",
+	}
+
+	err := EnsureDatabase(cfg)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gagal terhubung ke database pemeliharaan")
+}
+
+// ---------- ConnectOrCreate ----------
+
+// failingDialector selalu gagal saat diinisialisasi (meniru server/DB tidak tersedia).
+type failingDialector struct{ gorm.Dialector }
+
+func (failingDialector) Initialize(*gorm.DB) error { return errors.New("tidak bisa terhubung") }
+
+// sequenceDialectors mengganti openDialector agar tiap panggilan berurutan memakai dialector berbeda.
+func sequenceDialectors(t *testing.T, seq ...func() gorm.Dialector) {
+	t.Helper()
+	original := openDialector
+	t.Cleanup(func() { openDialector = original })
+	i := 0
+	openDialector = func(string) gorm.Dialector {
+		d := seq[i]()
+		i++
+		return d
+	}
+}
+
+func failing() gorm.Dialector { return failingDialector{} }
+func memory() gorm.Dialector  { return sqlite.Open(":memory:") }
+
+func TestConnectOrCreate_ConnectsDirectly(t *testing.T) {
+	sequenceDialectors(t, memory) // hanya satu panggilan: database maintenance tidak disentuh
+
+	db, err := ConnectOrCreate(testConfig())
+
+	require.NoError(t, err)
+	assert.NotNil(t, db)
+}
+
+func TestConnectOrCreate_CreatesThenReconnects(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "maintenance.db")
+	seed, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, seed.Exec("CREATE TABLE pg_database (datname text)").Error)
+	require.NoError(t, seed.Exec("INSERT INTO pg_database (datname) VALUES ('x')").Error)
+	sqlDB, _ := seed.DB()
+	require.NoError(t, sqlDB.Close())
+
+	sequenceDialectors(t, failing, func() gorm.Dialector { return sqlite.Open(path) }, memory)
+
+	db, err := ConnectOrCreate(&config.Config{DBDatabase: "x"})
+
+	require.NoError(t, err)
+	assert.NotNil(t, db)
+}
+
+func TestConnectOrCreate_ReportsBothFailures(t *testing.T) {
+	sequenceDialectors(t, failing, failing)
+
+	db, err := ConnectOrCreate(testConfig())
+
+	assert.Nil(t, db)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gagal terhubung ke PostgreSQL")
+	assert.Contains(t, err.Error(), "pembuatan database otomatis juga gagal")
 }

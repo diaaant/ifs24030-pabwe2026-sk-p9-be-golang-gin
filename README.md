@@ -8,10 +8,10 @@ Clean Architecture + Feature-First, 100% statement coverage.
 ```bash
 psql -U postgres -c "CREATE DATABASE pabwe_p9_blog;"
 go mod tidy                  # membuat go.sum
-go run cmd/server/main.go    # http://localhost:8081
+go run cmd/server/main.go    # http://localhost:8080
 ```
 
-Swagger UI: http://localhost:8081/swagger/index.html — Spesifikasi: `/api.json`
+Swagger UI: http://localhost:8080/swagger/index.html — Spesifikasi: `/api.json`
 
 Akun bawaan (seeder): `admin/admin` (admin), `member/member` (member).
 
@@ -36,3 +36,9 @@ Biner membaca `.env` dari direktori aktif.
   `Authorization: Bearer <OPENAI_KEY>`; respons JSON `{"results":[{title,url,snippet}]}`
   atau `{"data":{"results":[...]}}`. Field `link/content/description` juga dikenali.
 - **OpenAI** (`OPENAI_ENDPOINT`): base URL; dipanggil `POST {endpoint}/chat/completions`.
+
+## Deploy (variabel lingkungan platform)
+
+Biner membaca variabel dari lingkungan (berkas `.env` tidak ikut ke server):
+`APP_PORT` atau `PORT` (default 8080), `JWT_SECRET` atau `APP_KEY`, `DB_*`, `OPENAI_*`,
+`SEARCH_ENGINE_ENDPOINT`. Database target dibuat otomatis bila belum ada.

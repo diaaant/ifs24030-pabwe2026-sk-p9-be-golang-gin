@@ -4,6 +4,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -55,8 +56,10 @@ type Post struct {
 // Hook pembuka koneksi. Dibuat variabel agar dapat diganti saat pengujian
 // sehingga jalur sukses Connect() bisa diuji tanpa server PostgreSQL.
 var (
+	// PreferSimpleProtocol dibutuhkan agar kompatibel dengan PgBouncer (mode
+	// transaction pooling) yang dipakai platform deploy: tanpa prepared statement.
 	openDialector = func(dsn string) gorm.Dialector {
-		return postgres.Open(dsn)
+		return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
 	}
 	openSQLite = func(cfg *gorm.Config) (*gorm.DB, error) {
 		return gorm.Open(sqlite.Open(":memory:"), cfg)
@@ -72,6 +75,51 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("gagal terhubung ke PostgreSQL: %w", err)
 	}
 	return db, nil
+}
+
+// EnsureDatabase membuat database target bila belum ada, dengan terhubung ke
+// database pemeliharaan "postgres" memakai kredensial yang sama. AutoMigrate
+// hanya membuat tabel, bukan database, sehingga langkah ini mencegah
+// 'database does not exist' saat deploy ke server baru.
+func EnsureDatabase(cfg *config.Config) error {
+	maintenance := *cfg
+	maintenance.DBDatabase = "postgres"
+
+	db, err := gorm.Open(openDialector(maintenance.DSN()), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		return fmt.Errorf("gagal terhubung ke database pemeliharaan: %w", err)
+	}
+	// Error db.DB() tidak mungkin terjadi setelah Open sukses.
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
+
+	var count int64
+	if err := db.Raw("SELECT COUNT(*) FROM pg_database WHERE datname = ?", cfg.DBDatabase).Scan(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	quoted := `"` + strings.ReplaceAll(cfg.DBDatabase, `"`, `""`) + `"`
+	return db.Exec("CREATE DATABASE " + quoted).Error
+}
+
+// ConnectOrCreate terhubung ke database target. Hanya bila gagal, mencoba membuat
+// database tersebut (EnsureDatabase) lalu terhubung ulang. Pada database terkelola
+// (mis. PgBouncer milik platform) koneksi pertama langsung berhasil sehingga
+// database pemeliharaan "postgres" tidak pernah disentuh.
+func ConnectOrCreate(cfg *config.Config) (*gorm.DB, error) {
+	db, err := Connect(cfg)
+	if err == nil {
+		return db, nil
+	}
+	if ensureErr := EnsureDatabase(cfg); ensureErr != nil {
+		return nil, fmt.Errorf("%w (pembuatan database otomatis juga gagal: %v)", err, ensureErr)
+	}
+	return Connect(cfg)
 }
 
 // ConnectSQLite membuka database SQLite in-memory yang terisolasi.

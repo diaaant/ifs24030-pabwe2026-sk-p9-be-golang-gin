@@ -10,7 +10,7 @@ import (
 )
 
 var envKeys = []string{
-	"APP_ENV", "APP_PORT", "APP_KEY",
+	"APP_ENV", "APP_PORT", "PORT", "APP_KEY", "JWT_SECRET",
 	"ADMIN_USERNAME", "ADMIN_PASSWORD",
 	"DB_CONNECTION", "DB_HOST", "DB_PORT", "DB_DATABASE",
 	"DB_USERNAME", "DB_PASSWORD", "DB_SSLMODE",
@@ -43,7 +43,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	cfg := LoadConfig()
 
 	assert.Equal(t, "development", cfg.AppEnv)
-	assert.Equal(t, "8081", cfg.AppPort)
+	assert.Equal(t, "8080", cfg.AppPort)
 	assert.Equal(t, "delcom_blog_secret_key_super_secure_2026_random_string_32chars", cfg.AppKey)
 	assert.Equal(t, "admin", cfg.AdminUsername)
 	assert.Equal(t, "admin", cfg.AdminPassword)
@@ -129,7 +129,7 @@ func TestLoadConfig_EmptyValueUsesFallback(t *testing.T) {
 
 	cfg := LoadConfig()
 
-	assert.Equal(t, "8081", cfg.AppPort)
+	assert.Equal(t, "8080", cfg.AppPort)
 }
 
 func TestConfig_DSN(t *testing.T) {
@@ -155,4 +155,23 @@ func TestGetEnv(t *testing.T) {
 
 	require.NoError(t, os.Setenv("APP_ENV", "value"))
 	assert.Equal(t, "value", getEnv("APP_ENV", "fallback"))
+}
+
+func TestLoadConfig_PlatformVariables(t *testing.T) {
+	clearEnv(t)
+	t.Chdir(t.TempDir())
+
+	// Hanya PORT yang tersedia.
+	require.NoError(t, os.Setenv("PORT", "7202"))
+	assert.Equal(t, "7202", LoadConfig().AppPort)
+
+	// APP_PORT diprioritaskan di atas PORT.
+	require.NoError(t, os.Setenv("APP_PORT", "9000"))
+	assert.Equal(t, "9000", LoadConfig().AppPort)
+
+	// JWT_SECRET diprioritaskan di atas APP_KEY.
+	require.NoError(t, os.Setenv("APP_KEY", "base64:abc="))
+	assert.Equal(t, "base64:abc=", LoadConfig().AppKey)
+	require.NoError(t, os.Setenv("JWT_SECRET", "jwt-secret"))
+	assert.Equal(t, "jwt-secret", LoadConfig().AppKey)
 }

@@ -1,6 +1,3 @@
-# Environment Variables (PENTING!)
-.env
-
 # Binary hasil build (diawali "/" agar hanya mengabaikan root,
 # bukan folder internal/server/ dan sejenisnya)
 /server

@@ -3,7 +3,6 @@ package main
 
 import (
 	"log"
-	"os"
 
 	"app/internal/config"
 	"app/internal/database"
@@ -13,7 +12,8 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	db, err := database.Connect(cfg)
+	// Terhubung ke database; bila gagal, coba buat database lalu terhubung ulang.
+	db, err := database.ConnectOrCreate(cfg)
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
@@ -24,13 +24,8 @@ func main() {
 		log.Fatalf("seed: %v", err)
 	}
 
-	port := cfg.AppPort
-	if p := os.Getenv("PORT"); p != "" {
-		port = p
-	}
-
 	router := server.NewRouter(db, cfg)
-	if err := router.Run(":" + port); err != nil {
+	if err := router.Run(":" + cfg.AppPort); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }

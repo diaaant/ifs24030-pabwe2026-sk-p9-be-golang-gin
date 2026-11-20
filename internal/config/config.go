@@ -41,8 +41,8 @@ func LoadConfig() *Config {
 
 	return &Config{
 		AppEnv:  getEnv("APP_ENV", "development"),
-		AppPort: getEnv("APP_PORT", "8081"),
-		AppKey:  getEnv("APP_KEY", "delcom_blog_secret_key_super_secure_2026_random_string_32chars"),
+		AppPort: firstEnv("8080", "APP_PORT", "PORT"),
+		AppKey:  firstEnv("delcom_blog_secret_key_super_secure_2026_random_string_32chars", "JWT_SECRET", "APP_KEY"),
 
 		AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword: getEnv("ADMIN_PASSWORD", "admin"),
@@ -75,6 +75,18 @@ func (c *Config) DSN() string {
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok && value != "" {
 		return value
+	}
+	return fallback
+}
+
+// firstEnv mengembalikan nilai variabel pertama yang terisi dari daftar keys
+// (mis. APP_PORT lalu PORT), atau fallback bila semuanya kosong. Berguna agar
+// aplikasi mengikuti variabel lingkungan yang disediakan platform deploy.
+func firstEnv(fallback string, keys ...string) string {
+	for _, key := range keys {
+		if value := getEnv(key, ""); value != "" {
+			return value
+		}
 	}
 	return fallback
 }
