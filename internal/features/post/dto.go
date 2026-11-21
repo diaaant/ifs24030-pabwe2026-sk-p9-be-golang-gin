@@ -17,6 +17,7 @@ var Categories = []string{"Teknologi", "Pendidikan", "Gaya Hidup", "Bisnis", "Op
 var (
 	ErrPostNotFound    = errors.New("post not found")
 	ErrUserNotFound    = errors.New("user not found")
+	ErrForbidden       = errors.New("you do not have access to this post")
 	ErrInvalidCategory = errors.New("invalid category, must be one of: " + strings.Join(Categories, ", "))
 )
 
@@ -37,10 +38,11 @@ type AuthorResponse struct {
 }
 
 // PostResponse adalah representasi artikel untuk klien. Content hanya
-// disertakan pada respons detail.
+// disertakan pada respons detail. UserID dikosongkan pada respons publik
+// (omitempty) karena merupakan data internal.
 type PostResponse struct {
 	ID             uint            `json:"id"`
-	UserID         uint            `json:"user_id"`
+	UserID         uint            `json:"user_id,omitempty"`
 	Title          string          `json:"title"`
 	Slug           string          `json:"slug"`
 	Category       string          `json:"category"`
@@ -57,9 +59,9 @@ type PostResponse struct {
 
 // StatsResponse adalah ringkasan 3 kartu statistik penulis.
 type StatsResponse struct {
-	Total       int64 `json:"total"`
-	TotalTerbit int64 `json:"total_terbit"`
-	TotalDraf   int64 `json:"total_draf"`
+	Total       int64 `json:"total_articles"`
+	TotalTerbit int64 `json:"total_selesai"`
+	TotalDraf   int64 `json:"belum_selesai"`
 }
 
 // UserSummary adalah ringkasan user untuk monitoring admin.

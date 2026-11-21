@@ -16,6 +16,7 @@ type Repository interface {
 	Update(post *database.Post) error
 	Delete(post *database.Post) error
 	SlugExists(slug string) (bool, error)
+	FindByID(id uint) (*database.Post, error)
 	FindByIDAndUser(id, userID uint) (*database.Post, error)
 	FindPublishedBySlug(slug string) (*database.Post, error)
 	ListPublished(query, category string) ([]database.Post, error)
@@ -51,6 +52,10 @@ func (r *gormRepository) SlugExists(slug string) (bool, error) {
 	var count int64
 	err := r.db.Model(&database.Post{}).Where("slug = ?", slug).Count(&count).Error
 	return count > 0, err
+}
+
+func (r *gormRepository) FindByID(id uint) (*database.Post, error) {
+	return findOne(r.db.Where("id = ?", id))
 }
 
 func (r *gormRepository) FindByIDAndUser(id, userID uint) (*database.Post, error) {

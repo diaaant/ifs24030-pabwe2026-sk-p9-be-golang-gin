@@ -21,12 +21,17 @@ func NewService(repo Repository) *Service {
 // ---------- publik ----------
 
 // ListPublic mengambil artikel terbit dengan pencarian kata kunci & filter kategori.
+// user_id tidak disertakan karena merupakan data internal.
 func (s *Service) ListPublic(query, category string) ([]PostResponse, error) {
 	posts, err := s.repo.ListPublished(strings.TrimSpace(query), strings.TrimSpace(category))
 	if err != nil {
 		return nil, err
 	}
-	return toResponses(posts), nil
+	out := toResponses(posts)
+	for i := range out {
+		out[i].UserID = 0
+	}
+	return out, nil
 }
 
 // GetPublic mengambil satu artikel terbit berdasarkan slug.
@@ -39,6 +44,7 @@ func (s *Service) GetPublic(slug string) (*PostResponse, error) {
 		return nil, ErrPostNotFound
 	}
 	resp := toResponse(post, true)
+	resp.UserID = 0
 	return &resp, nil
 }
 
@@ -190,13 +196,17 @@ func (s *Service) AdminUserPosts(userID uint) ([]PostResponse, error) {
 
 // ---------- helper ----------
 
+// mine: artikel tidak ada -> ErrPostNotFound (404); milik orang lain -> ErrForbidden (403).
 func (s *Service) mine(userID, id uint) (*database.Post, error) {
-	post, err := s.repo.FindByIDAndUser(id, userID)
+	post, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
 	if post == nil {
 		return nil, ErrPostNotFound
+	}
+	if post.UserID != userID {
+		return nil, ErrForbidden
 	}
 	return post, nil
 }
