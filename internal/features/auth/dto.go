@@ -14,16 +14,18 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=72"`
 }
 
-// LoginRequest adalah payload login.
+// LoginRequest adalah payload login. Identitas boleh username atau email.
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password" binding:"required"`
 }
 
-// UpdateProfileRequest adalah payload pembaruan profil. Password opsional.
+// UpdateProfileRequest adalah payload pembaruan profil.
+// Semua field opsional; field yang kosong tidak diubah.
 type UpdateProfileRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=255"`
-	Email    string `json:"email" binding:"required,email,max=255"`
+	Username string `json:"username" binding:"omitempty,min=3,max=255"`
+	Email    string `json:"email" binding:"omitempty,email,max=255"`
 	Password string `json:"password" binding:"omitempty,min=6,max=72"`
 }
 

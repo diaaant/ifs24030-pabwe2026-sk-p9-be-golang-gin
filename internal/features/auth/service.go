@@ -31,8 +31,8 @@ func NewService(repo Repository, secret string) *Service {
 	return &Service{repo: repo, secret: secret, ttl: 24 * time.Hour}
 }
 
-// Register membuat akun baru dengan role member.
-func (s *Service) Register(req RegisterRequest) (*UserResponse, error) {
+// Register membuat akun baru dengan role member dan langsung menerbitkan token.
+func (s *Service) Register(req RegisterRequest) (*LoginResponse, error) {
 	if err := s.ensureUnique(req.Username, req.Email, 0); err != nil {
 		return nil, err
 	}
@@ -52,15 +52,25 @@ func (s *Service) Register(req RegisterRequest) (*UserResponse, error) {
 		return nil, err
 	}
 
-	resp := toUserResponse(user)
-	return &resp, nil
+	return &LoginResponse{Token: s.generateToken(user), User: toUserResponse(user)}, nil
 }
 
-// Login memverifikasi kredensial dan menerbitkan token JWT.
+// Login memverifikasi kredensial (username ATAU email) dan menerbitkan token JWT.
 func (s *Service) Login(req LoginRequest) (*LoginResponse, error) {
-	user, err := s.repo.FindByUsername(req.Username)
+	identity := req.Username
+	if identity == "" {
+		identity = req.Email
+	}
+
+	user, err := s.repo.FindByUsername(identity)
 	if err != nil {
 		return nil, err
+	}
+	if user == nil {
+		user, err = s.repo.FindByEmail(identity)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if user == nil {
 		return nil, ErrInvalidCredentials
@@ -82,18 +92,26 @@ func (s *Service) GetProfile(id uint) (*UserResponse, error) {
 	return &resp, nil
 }
 
-// UpdateProfile memperbarui username, email, dan (opsional) password.
+// UpdateProfile memperbarui field yang dikirim; yang kosong tetap memakai nilai lama.
 func (s *Service) UpdateProfile(id uint, req UpdateProfileRequest) (*UserResponse, error) {
 	user, err := s.findByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureUnique(req.Username, req.Email, id); err != nil {
+
+	username, email := user.Username, user.Email
+	if req.Username != "" {
+		username = req.Username
+	}
+	if req.Email != "" {
+		email = req.Email
+	}
+	if err := s.ensureUnique(username, email, id); err != nil {
 		return nil, err
 	}
 
-	user.Username = req.Username
-	user.Email = req.Email
+	user.Username = username
+	user.Email = email
 	if req.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {

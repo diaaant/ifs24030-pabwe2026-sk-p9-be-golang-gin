@@ -27,12 +27,16 @@ func (h *Handler) Register(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	user, err := h.svc.Register(req)
+	result, err := h.svc.Register(req)
 	if err != nil {
+		if errors.Is(err, ErrUsernameTaken) || errors.Is(err, ErrEmailTaken) {
+			response.Fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.fail(c, err)
 		return
 	}
-	response.Success(c, http.StatusCreated, "Registration successful", user)
+	response.Success(c, http.StatusCreated, "Registration successful", result)
 }
 
 // Login godoc: POST /api/auth/login
@@ -40,6 +44,10 @@ func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if req.Username == "" && req.Email == "" {
+		response.Fail(c, http.StatusBadRequest, "Invalid request: username is required")
 		return
 	}
 	result, err := h.svc.Login(req)

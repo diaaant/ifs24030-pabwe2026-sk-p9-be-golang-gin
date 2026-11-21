@@ -101,7 +101,7 @@ func seedFake(t *testing.T, f *fakeRepo, username, email, password string) *data
 	svc := NewService(f, secret)
 	resp, err := svc.Register(RegisterRequest{Username: username, Email: email, Password: password})
 	require.NoError(t, err)
-	return f.users[resp.ID]
+	return f.users[resp.User.ID]
 }
 
 var errBoom = errors.New("boom")
@@ -162,9 +162,10 @@ func TestService_Register(t *testing.T) {
 		resp, err := NewService(f, secret).Register(RegisterRequest{Username: "bob", Email: "bob@x.com", Password: "secret1"})
 
 		require.NoError(t, err)
-		assert.Equal(t, "bob", resp.Username)
-		assert.Equal(t, database.RoleMember, resp.Role)
-		assert.NotEqual(t, "secret1", f.users[resp.ID].Password)
+		assert.NotEmpty(t, resp.Token)
+		assert.Equal(t, "bob", resp.User.Username)
+		assert.Equal(t, database.RoleMember, resp.User.Role)
+		assert.NotEqual(t, "secret1", f.users[resp.User.ID].Password)
 	})
 
 	t.Run("username taken", func(t *testing.T) {
@@ -224,6 +225,23 @@ func TestService_Login(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, resp.User.ID, claims.UserID)
 		assert.Equal(t, database.RoleMember, claims.Role)
+	})
+
+	t.Run("success with email as identity", func(t *testing.T) {
+		f := newFakeRepo()
+		seedFake(t, f, "bob", "bob@x.com", "secret1")
+
+		resp, err := NewService(f, secret).Login(LoginRequest{Username: "bob@x.com", Password: "secret1"})
+
+		require.NoError(t, err)
+		assert.Equal(t, "bob", resp.User.Username)
+	})
+
+	t.Run("email lookup error", func(t *testing.T) {
+		f := newFakeRepo()
+		f.errFindEmail = errBoom
+		_, err := NewService(f, secret).Login(LoginRequest{Username: "ghost", Password: "x"})
+		assert.ErrorIs(t, err, errBoom)
 	})
 
 	t.Run("lookup error", func(t *testing.T) {
@@ -293,6 +311,21 @@ func TestService_UpdateProfile(t *testing.T) {
 		})
 
 		require.NoError(t, err)
+		assert.NotEqual(t, oldHash, f.users[u.ID].Password)
+	})
+
+	t.Run("partial update only email and password", func(t *testing.T) {
+		f := newFakeRepo()
+		u := seedFake(t, f, "bob", "bob@x.com", "secret1")
+		oldHash := u.Password
+
+		resp, err := NewService(f, secret).UpdateProfile(u.ID, UpdateProfileRequest{
+			Email: "baru@x.com", Password: "newsecret",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "bob", resp.Username)
+		assert.Equal(t, "baru@x.com", resp.Email)
 		assert.NotEqual(t, oldHash, f.users[u.ID].Password)
 	})
 
@@ -416,11 +449,14 @@ func TestHandler_Register(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "success", body["status"])
 	data := body["data"].(map[string]any)
-	assert.Equal(t, "member", data["role"])
-	assert.NotContains(t, data, "password")
+	assert.NotEmpty(t, data["token"])
+	user := data["user"].(map[string]any)
+	assert.Equal(t, "member", user["role"])
+	assert.NotContains(t, user, "password")
 
-	w, _ = e.call(http.MethodPost, "/register", valid, "")
-	assert.Equal(t, http.StatusConflict, w.Code)
+	w, body = e.call(http.MethodPost, "/register", valid, "")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "fail", body["status"])
 
 	w, body = e.call(http.MethodPost, "/register", gin.H{"username": "x", "email": "bad", "password": "1"}, "")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -437,8 +473,20 @@ func TestHandler_Login(t *testing.T) {
 	token := e.registerAndLogin(t, "alice")
 	assert.NotEmpty(t, token)
 
-	w, _ := e.call(http.MethodPost, "/login", gin.H{"username": "alice", "password": "wrong"}, "")
+	// Login memakai email sebagai identitas (di field username).
+	w, _ := e.call(http.MethodPost, "/login", gin.H{"username": "alice@x.com", "password": "secret1"}, "")
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Login memakai field email.
+	w, _ = e.call(http.MethodPost, "/login", gin.H{"email": "alice@x.com", "password": "secret1"}, "")
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	w, _ = e.call(http.MethodPost, "/login", gin.H{"username": "alice", "password": "wrong"}, "")
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	// Identitas kosong ditolak 400.
+	w, _ = e.call(http.MethodPost, "/login", gin.H{"password": "secret1"}, "")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	w, _ = e.call(http.MethodPost, "/login", "{not json", "")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -488,4 +536,9 @@ func TestHandler_UpdateProfile(t *testing.T) {
 
 	w, _ = e.call(http.MethodPut, "/profile", gin.H{"username": "", "email": "nope"}, token)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	// Update parsial: hanya email dan password.
+	w, body = e.call(http.MethodPut, "/profile", gin.H{"email": "solo@x.com", "password": "newsecret"}, token)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "solo@x.com", body["data"].(map[string]any)["email"])
 }
