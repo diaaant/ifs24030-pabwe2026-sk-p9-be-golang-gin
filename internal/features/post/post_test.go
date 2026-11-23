@@ -256,8 +256,8 @@ func TestService_UpdateToggleDelete(t *testing.T) {
 	assert.False(t, draft.IsPublished)
 	assert.Nil(t, draft.PublishedAt)
 
-	_, err = svc.GetMine(other.ID, created.ID) // bukan miliknya
-	assert.ErrorIs(t, err, ErrPostNotFound)
+	_, err = svc.GetMine(other.ID, created.ID) // milik orang lain -> 403
+	assert.ErrorIs(t, err, ErrForbidden)
 
 	require.NoError(t, svc.Delete(author.ID, created.ID))
 	_, err = svc.GetMine(author.ID, created.ID)
@@ -460,7 +460,10 @@ func TestHandler_AuthorCRUDFlow(t *testing.T) {
 	assert.Equal(t, "isi lengkap Artikel Satu", body["data"].(map[string]any)["content"])
 
 	w, _ = e.call(t, http.MethodGet, id, nil, &e.bob)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	w, _ = e.call(t, http.MethodPut, id, gin.H{"title": "Dibajak", "content": "x"}, &e.bob)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 
 	w, body = e.call(t, http.MethodPut, id, gin.H{"title": "Judul Baru", "category": "Opini", "content": "baru"}, &e.alice)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -477,10 +480,17 @@ func TestHandler_AuthorCRUDFlow(t *testing.T) {
 	assert.Equal(t, true, body["data"].(map[string]any)["is_published"])
 
 	_, body = e.call(t, http.MethodGet, "/posts/stats", nil, &e.alice)
-	assert.Equal(t, map[string]any{"total": float64(1), "total_terbit": float64(1), "total_draf": float64(0)}, body["data"])
+	assert.Equal(t, map[string]any{
+		"total":          float64(1),
+		"total_terbit":   float64(1),
+		"total_draf":     float64(0),
+		"total_articles": float64(1),
+		"total_selesai":  float64(1),
+		"belum_selesai":  float64(0),
+	}, body["data"])
 
 	w, _ = e.call(t, http.MethodDelete, id, nil, &e.bob)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 	w, _ = e.call(t, http.MethodDelete, id, nil, &e.alice)
 	assert.Equal(t, http.StatusOK, w.Code)
 	w, _ = e.call(t, http.MethodGet, id, nil, &e.alice)
