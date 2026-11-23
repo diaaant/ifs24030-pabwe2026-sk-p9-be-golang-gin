@@ -18,6 +18,8 @@ var (
 	ErrPostNotFound    = errors.New("post not found")
 	ErrUserNotFound    = errors.New("user not found")
 	ErrInvalidCategory = errors.New("invalid category, must be one of: " + strings.Join(Categories, ", "))
+	// TAMBAHAN BARU: Untuk menangani akses ilegal (403 Forbidden)
+	ErrForbidden       = errors.New("forbidden: you are not allowed to modify this post")
 )
 
 // PostRequest adalah payload membuat / memperbarui artikel.

@@ -45,5 +45,6 @@ func (h *Handler) Generate(c *gin.Context) {
 	case errors.Is(err, ErrAIFailed):
 		message = "AI request failed"
 	}
-	response.Error(c, http.StatusBadGateway, message)
+	// PERUBAHAN: Ubah 502 (BadGateway) menjadi 500 (InternalServerError)
+	response.Error(c, http.StatusInternalServerError, message)
 }
