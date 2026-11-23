@@ -81,12 +81,20 @@ func (h *Handler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
+	userID := middleware.CurrentUser(c).ID
+
+	// Cek keberadaan (404) dan kepemilikan (403) dulu sebelum validasi body (400).
+	if _, err := h.svc.GetMine(userID, id); err != nil {
+		h.reply(c, http.StatusOK, "", nil, err)
+		return
+	}
+
 	var req PostRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	data, err := h.svc.Update(middleware.CurrentUser(c).ID, id, req)
+	data, err := h.svc.Update(userID, id, req)
 	h.reply(c, http.StatusOK, "Post updated", data, err)
 }
 
@@ -151,6 +159,8 @@ func (h *Handler) reply(c *gin.Context, status int, message string, data any, er
 		response.Success(c, status, message, data)
 	case errors.Is(err, ErrPostNotFound), errors.Is(err, ErrUserNotFound):
 		response.Fail(c, http.StatusNotFound, err.Error())
+	case errors.Is(err, ErrForbidden):
+		response.Fail(c, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrInvalidCategory):
 		response.Fail(c, http.StatusBadRequest, err.Error())
 	default:

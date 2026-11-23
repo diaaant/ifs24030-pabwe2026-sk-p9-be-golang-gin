@@ -59,11 +59,15 @@ type PostResponse struct {
 
 // StatsResponse adalah ringkasan 3 kartu statistik penulis.
 type StatsResponse struct {
+	// Field lama (tetap dipertahankan)
 	Total       int64 `json:"total"`
 	TotalTerbit int64 `json:"total_terbit"`
 	TotalDraf   int64 `json:"total_draf"`
+	// Field yang diminta pengujian API
+	TotalArticles int64 `json:"total_articles"`
+	TotalSelesai  int64 `json:"total_selesai"`
+	BelumSelesai  int64 `json:"belum_selesai"`
 }
-
 // UserSummary adalah ringkasan user untuk monitoring admin.
 type UserSummary struct {
 	ID             uint   `json:"id"`

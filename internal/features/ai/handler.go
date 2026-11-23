@@ -2,6 +2,7 @@ package ai
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,8 @@ func (h *Handler) Generate(c *gin.Context) {
 		return
 	}
 
+	log.Printf("ai-generate error: %v", err)
+
 	message := ErrInvalidAIResponse.Error()
 	switch {
 	case errors.Is(err, ErrSearchFailed):
@@ -45,6 +48,5 @@ func (h *Handler) Generate(c *gin.Context) {
 	case errors.Is(err, ErrAIFailed):
 		message = "AI request failed"
 	}
-	// PERUBAHAN: Ubah 502 (BadGateway) menjadi 500 (InternalServerError)
-	response.Error(c, http.StatusInternalServerError, message)
+	response.Error(c, http.StatusBadGateway, message)
 }

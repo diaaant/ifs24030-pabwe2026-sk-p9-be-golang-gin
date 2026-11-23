@@ -26,7 +26,11 @@ func (s *Service) ListPublic(query, category string) ([]PostResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toResponses(posts), nil
+	out := toResponses(posts)
+	for i := range out {
+		out[i].UserID = 0 // disembunyikan dari respons publik (omitempty)
+	}
+	return out, nil
 }
 
 // GetPublic mengambil satu artikel terbit berdasarkan slug.
@@ -39,6 +43,7 @@ func (s *Service) GetPublic(slug string) (*PostResponse, error) {
 		return nil, ErrPostNotFound
 	}
 	resp := toResponse(post, true)
+	resp.UserID = 0
 	return &resp, nil
 }
 
@@ -59,7 +64,14 @@ func (s *Service) Stats(userID uint) (*StatsResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &StatsResponse{Total: total, TotalTerbit: published, TotalDraf: total - published}, nil
+	return &StatsResponse{
+		Total:         total,
+		TotalTerbit:   published,
+		TotalDraf:     total - published,
+		TotalArticles: total,
+		TotalSelesai:  published,
+		BelumSelesai:  total - published,
+	}, nil
 }
 
 // GetMine mengambil satu artikel milik penulis (lengkap dengan konten).
@@ -190,7 +202,27 @@ func (s *Service) AdminUserPosts(userID uint) ([]PostResponse, error) {
 
 // ---------- helper ----------
 
+// postFinder adalah kemampuan opsional repository untuk mencari artikel tanpa filter pemilik.
+type postFinder interface {
+	FindByID(id uint) (*database.Post, error)
+}
+
+// mine mengambil artikel: 404 bila tidak ada, 403 bila milik user lain.
 func (s *Service) mine(userID, id uint) (*database.Post, error) {
+	if f, ok := s.repo.(postFinder); ok {
+		post, err := f.FindByID(id)
+		if err != nil {
+			return nil, err
+		}
+		if post == nil {
+			return nil, ErrPostNotFound
+		}
+		if post.UserID != userID {
+			return nil, ErrForbidden
+		}
+		return post, nil
+	}
+
 	post, err := s.repo.FindByIDAndUser(id, userID)
 	if err != nil {
 		return nil, err
