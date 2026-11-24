@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -82,9 +83,12 @@ func Auth(secretKey string) gin.HandlerFunc {
 // RequireRole hanya mengizinkan user dengan salah satu role yang diberikan.
 func RequireRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role := CurrentUser(c).Role
+		u := CurrentUser(c)
+		// LOG DIAGNOSIS SEMENTARA: hapus setelah masalah 403 admin selesai.
+		log.Printf("RequireRole: user=%q role=%q diizinkan=%v", u.Username, u.Role, roles)
+
 		for _, allowed := range roles {
-			if strings.EqualFold(role, allowed) {
+			if strings.EqualFold(u.Role, allowed) {
 				c.Next()
 				return
 			}

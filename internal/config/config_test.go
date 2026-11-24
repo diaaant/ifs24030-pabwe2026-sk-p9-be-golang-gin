@@ -56,8 +56,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "disable", cfg.DBSSLMode)
 	assert.Equal(t, "https://delcom.org/api/v1/search", cfg.SearchEngineEndpoint)
 	assert.Equal(t, "https://delcom.org/api/v1", cfg.OpenAIEndpoint)
-	assert.Equal(t, "key", cfg.OpenAIKey)
-	assert.Equal(t, "nama-model", cfg.OpenAIModel)
+	assert.Equal(t, "", cfg.OpenAIKey)
+	assert.Equal(t, "", cfg.OpenAIModel)
 }
 
 func TestLoadConfig_FromEnvironment(t *testing.T) {
@@ -143,7 +143,6 @@ func TestConfig_DSN(t *testing.T) {
 	}
 
 	assert.Equal(t,
-		// PERUBAHAN ADA DI BARIS DI BAWAH INI (default_query_exec_mode=simple_protocol)
 		"host=localhost user=postgres password=secret dbname=blog port=5432 sslmode=disable TimeZone=Asia/Jakarta default_query_exec_mode=simple_protocol",
 		cfg.DSN(),
 	)

@@ -178,10 +178,18 @@ func Migrate(db *gorm.DB) error {
 }
 
 // Seed membuat akun bawaan (idempoten): admin (dari ADMIN_USERNAME/ADMIN_PASSWORD,
-// default admin/admin) dan member/member.
+// default admin/admin), admin/admin dari spesifikasi praktikum, dan member/member.
 func Seed(db *gorm.DB, cfg *config.Config) error {
-	if err := seedUser(db, cfg.AdminUsername, cfg.AdminPassword, RoleAdmin); err != nil {
-		return err
+	admins := [][2]string{{cfg.AdminUsername, cfg.AdminPassword}}
+	// Pastikan akun admin/admin dari spesifikasi selalu ada dengan role admin,
+	// walaupun ADMIN_USERNAME di environment diisi nilai lain.
+	if cfg.AdminUsername != "admin" {
+		admins = append(admins, [2]string{"admin", "admin"})
+	}
+	for _, a := range admins {
+		if err := seedUser(db, a[0], a[1], RoleAdmin); err != nil {
+			return err
+		}
 	}
 	return seedUser(db, "member", "member", RoleMember)
 }

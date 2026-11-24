@@ -59,8 +59,8 @@ func LoadConfig() *Config {
 		SearchEngineEndpoint: getEnv("SEARCH_ENGINE_ENDPOINT", "https://delcom.org/api/v1/search"),
 
 		OpenAIEndpoint: getEnv("OPENAI_ENDPOINT", "https://delcom.org/api/v1"),
-		OpenAIKey:      getEnv("OPENAI_KEY", "key"),
-		OpenAIModel:    getEnv("OPENAI_MODEL", "nama-model"),
+		OpenAIKey:      getEnv("OPENAI_KEY", ""),
+		OpenAIModel:    getEnv("OPENAI_MODEL", ""),
 	}
 }
 
