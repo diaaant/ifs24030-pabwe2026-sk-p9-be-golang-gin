@@ -56,6 +56,7 @@ func (r *gormRepository) SlugExists(slug string) (bool, error) {
 func (r *gormRepository) FindByIDAndUser(id, userID uint) (*database.Post, error) {
 	return findOne(r.db.Where("id = ? AND user_id = ?", id, userID))
 }
+
 // FindByID mencari artikel berdasarkan ID tanpa memfilter pemilik.
 func (r *gormRepository) FindByID(id uint) (*database.Post, error) {
 	return findOne(r.db.Where("id = ?", id))

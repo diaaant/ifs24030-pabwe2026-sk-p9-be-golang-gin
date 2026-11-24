@@ -256,11 +256,31 @@ func TestService_UpdateToggleDelete(t *testing.T) {
 	assert.False(t, draft.IsPublished)
 	assert.Nil(t, draft.PublishedAt)
 
-	_, err = svc.GetMine(other.ID, created.ID) // bukan miliknya
+	// artikel milik orang lain -> forbidden
+	_, err = svc.GetMine(other.ID, created.ID)
+	assert.ErrorIs(t, err, ErrForbidden)
+	_, err = svc.Update(other.ID, created.ID, PostRequest{Title: "x", Content: "c"})
+	assert.ErrorIs(t, err, ErrForbidden)
+	_, err = svc.TogglePublish(other.ID, created.ID)
+	assert.ErrorIs(t, err, ErrForbidden)
+	assert.ErrorIs(t, svc.Delete(other.ID, created.ID), ErrForbidden)
+
+	// artikel yang memang tidak ada -> not found
+	_, err = svc.GetMine(author.ID, 9999)
 	assert.ErrorIs(t, err, ErrPostNotFound)
 
 	require.NoError(t, svc.Delete(author.ID, created.ID))
 	_, err = svc.GetMine(author.ID, created.ID)
+	assert.ErrorIs(t, err, ErrPostNotFound)
+}
+
+// failingRepo tidak punya FindByID, jadi service memakai jalur cadangan FindByIDAndUser.
+func TestService_MineFallbackNotFound(t *testing.T) {
+	db := newDB(t)
+	repo := NewRepository(db)
+	svc := NewService(&failingRepo{repo, map[string]error{}})
+
+	_, err := svc.GetMine(1, 9999)
 	assert.ErrorIs(t, err, ErrPostNotFound)
 }
 
@@ -459,8 +479,9 @@ func TestHandler_AuthorCRUDFlow(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "isi lengkap Artikel Satu", body["data"].(map[string]any)["content"])
 
+	// artikel milik orang lain -> 403
 	w, _ = e.call(t, http.MethodGet, id, nil, &e.bob)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 
 	w, body = e.call(t, http.MethodPut, id, gin.H{"title": "Judul Baru", "category": "Opini", "content": "baru"}, &e.alice)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -477,10 +498,23 @@ func TestHandler_AuthorCRUDFlow(t *testing.T) {
 	assert.Equal(t, true, body["data"].(map[string]any)["is_published"])
 
 	_, body = e.call(t, http.MethodGet, "/posts/stats", nil, &e.alice)
-	assert.Equal(t, map[string]any{"total": float64(1), "total_terbit": float64(1), "total_draf": float64(0)}, body["data"])
+	assert.Equal(t, map[string]any{
+		"total":          float64(1),
+		"total_terbit":   float64(1),
+		"total_draf":     float64(0),
+		"total_articles": float64(1),
+		"total_selesai":  float64(1),
+		"belum_selesai":  float64(0),
+	}, body["data"])
 
+	// bob mencoba mengubah / menghapus artikel alice -> 403
+	w, _ = e.call(t, http.MethodPut, id, gin.H{"title": "x", "content": "c"}, &e.bob)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	w, _ = e.call(t, http.MethodPatch, id+"/toggle-publish", nil, &e.bob)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 	w, _ = e.call(t, http.MethodDelete, id, nil, &e.bob)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
 	w, _ = e.call(t, http.MethodDelete, id, nil, &e.alice)
 	assert.Equal(t, http.StatusOK, w.Code)
 	w, _ = e.call(t, http.MethodGet, id, nil, &e.alice)

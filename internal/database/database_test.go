@@ -189,6 +189,50 @@ func TestSeed_MemberCreateError(t *testing.T) {
 	assert.Equal(t, int64(1), admins) // admin sempat terbuat sebelum member gagal
 }
 
+func TestSeed_UpdatesExistingAdminRoleAndPassword(t *testing.T) {
+	db := newTestDB(t)
+	oldHash, err := bcrypt.GenerateFromPassword([]byte("lama"), bcrypt.MinCost)
+	require.NoError(t, err)
+	// Akun "admin" sudah ada tetapi role dan password-nya berbeda dari konfigurasi.
+	require.NoError(t, db.Create(&User{
+		Username: "admin", Email: "admin@x.com", Password: string(oldHash), Role: RoleMember,
+	}).Error)
+
+	require.NoError(t, Seed(db, testConfig()))
+
+	var admin User
+	require.NoError(t, db.Where("username = ?", "admin").First(&admin).Error)
+	assert.Equal(t, RoleAdmin, admin.Role)
+	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte("admin")))
+}
+
+func TestSeed_UpdatesExistingMemberRoleOnly(t *testing.T) {
+	db := newTestDB(t)
+	// Akun "member" sudah ada tetapi role-nya salah; password member tidak disentuh.
+	require.NoError(t, db.Create(&User{
+		Username: "member", Email: "member@x.com", Password: "hash-asli", Role: RoleAdmin,
+	}).Error)
+
+	require.NoError(t, Seed(db, testConfig()))
+
+	var member User
+	require.NoError(t, db.Where("username = ?", "member").First(&member).Error)
+	assert.Equal(t, RoleMember, member.Role)
+	assert.Equal(t, "hash-asli", member.Password)
+}
+
+func TestSeed_ExistingAdminPasswordTooLong(t *testing.T) {
+	db := newTestDB(t)
+	// Password lama bukan hash valid, jadi perbandingan gagal dan hash baru dibuat;
+	// bcrypt menolak password > 72 byte sehingga Seed mengembalikan error.
+	require.NoError(t, db.Create(&User{
+		Username: "admin", Email: "admin@x.com", Password: "x", Role: RoleAdmin,
+	}).Error)
+	cfg := &config.Config{AdminUsername: "admin", AdminPassword: strings.Repeat("a", 73)}
+
+	assert.Error(t, Seed(db, cfg))
+}
+
 // ---------- Skema & relasi ----------
 
 func TestSchema_Defaults(t *testing.T) {

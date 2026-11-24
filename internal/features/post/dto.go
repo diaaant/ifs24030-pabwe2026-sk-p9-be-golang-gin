@@ -18,7 +18,6 @@ var (
 	ErrPostNotFound    = errors.New("post not found")
 	ErrUserNotFound    = errors.New("user not found")
 	ErrInvalidCategory = errors.New("invalid category, must be one of: " + strings.Join(Categories, ", "))
-	// TAMBAHAN BARU: Untuk menangani akses ilegal (403 Forbidden)
 	ErrForbidden       = errors.New("forbidden: you are not allowed to modify this post")
 )
 
@@ -39,10 +38,11 @@ type AuthorResponse struct {
 }
 
 // PostResponse adalah representasi artikel untuk klien. Content hanya
-// disertakan pada respons detail.
+// disertakan pada respons detail. UserID disembunyikan (omitempty) pada
+// respons publik dengan mengosongkannya di service.
 type PostResponse struct {
 	ID             uint            `json:"id"`
-	UserID         uint            `json:"user_id"`
+	UserID         uint            `json:"user_id,omitempty"`
 	Title          string          `json:"title"`
 	Slug           string          `json:"slug"`
 	Category       string          `json:"category"`
@@ -59,15 +59,15 @@ type PostResponse struct {
 
 // StatsResponse adalah ringkasan 3 kartu statistik penulis.
 type StatsResponse struct {
-	// Field lama (tetap dipertahankan)
 	Total       int64 `json:"total"`
 	TotalTerbit int64 `json:"total_terbit"`
 	TotalDraf   int64 `json:"total_draf"`
-	// Field yang diminta pengujian API
+
 	TotalArticles int64 `json:"total_articles"`
 	TotalSelesai  int64 `json:"total_selesai"`
 	BelumSelesai  int64 `json:"belum_selesai"`
 }
+
 // UserSummary adalah ringkasan user untuk monitoring admin.
 type UserSummary struct {
 	ID             uint   `json:"id"`

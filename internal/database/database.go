@@ -186,13 +186,31 @@ func Seed(db *gorm.DB, cfg *config.Config) error {
 	return seedUser(db, "member", "member", RoleMember)
 }
 
+// seedUser membuat akun bila belum ada. Bila akun sudah ada, role-nya dipastikan
+// sesuai, dan untuk admin password-nya disamakan dengan konfigurasi.
 func seedUser(db *gorm.DB, username, password, role string) error {
-	var count int64
-	if err := db.Model(&User{}).Where("username = ?", username).Count(&count).Error; err != nil {
-		return err
+	var existing User
+	res := db.Where("username = ?", username).Limit(1).Find(&existing)
+	if res.Error != nil {
+		return res.Error
 	}
-	if count > 0 {
-		return nil
+
+	if res.RowsAffected > 0 {
+		updates := map[string]any{}
+		if existing.Role != role {
+			updates["role"] = role
+		}
+		if role == RoleAdmin && bcrypt.CompareHashAndPassword([]byte(existing.Password), []byte(password)) != nil {
+			hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			updates["password"] = string(hash)
+		}
+		if len(updates) == 0 {
+			return nil
+		}
+		return db.Model(&existing).Updates(updates).Error
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
