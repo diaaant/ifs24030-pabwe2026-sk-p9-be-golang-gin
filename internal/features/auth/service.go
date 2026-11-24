@@ -31,7 +31,8 @@ func NewService(repo Repository, secret string) *Service {
 	return &Service{repo: repo, secret: secret, ttl: 24 * time.Hour}
 }
 
-// Register membuat akun baru dengan role member dan langsung menerbitkan token.
+// Register membuat akun baru dan langsung menerbitkan token.
+// Role default adalah member; admin hanya bila diminta lewat field role.
 func (s *Service) Register(req RegisterRequest) (*LoginResponse, error) {
 	if err := s.ensureUnique(req.Username, req.Email, 0); err != nil {
 		return nil, err
@@ -42,11 +43,16 @@ func (s *Service) Register(req RegisterRequest) (*LoginResponse, error) {
 		return nil, err
 	}
 
+	role := database.RoleMember
+	if req.Role == database.RoleAdmin {
+		role = database.RoleAdmin
+	}
+
 	user := &database.User{
 		Username: req.Username,
 		Email:    req.Email,
 		Password: string(hash),
-		Role:     database.RoleMember,
+		Role:     role,
 	}
 	if err := s.repo.Create(user); err != nil {
 		return nil, err

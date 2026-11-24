@@ -8,10 +8,12 @@ import (
 )
 
 // RegisterRequest adalah payload registrasi akun baru.
+// Role bersifat opsional (admin atau member); bila kosong menjadi member.
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=255"`
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Password string `json:"password" binding:"required,min=6,max=72"`
+	Role     string `json:"role" binding:"omitempty,oneof=admin member"`
 }
 
 // LoginRequest adalah payload login. Identitas boleh username atau email.
