@@ -109,7 +109,9 @@ func (r *gormRepository) ListUsersWithCounts() ([]UserSummary, error) {
 	err := r.db.Table("users").
 		Select("users.id, users.username, users.email, users.role, " +
 			"COUNT(posts.id) AS total_posts, " +
-			"COALESCE(SUM(CASE WHEN posts.is_published THEN 1 ELSE 0 END), 0) AS published_posts").
+			"COALESCE(SUM(CASE WHEN posts.is_published THEN 1 ELSE 0 END), 0) AS published_posts, " +
+			"COUNT(posts.id) AS total_articles, " +
+			"COALESCE(SUM(CASE WHEN posts.is_published THEN 1 ELSE 0 END), 0) AS total_published").
 		Joins("LEFT JOIN posts ON posts.user_id = users.id").
 		Group("users.id, users.username, users.email, users.role").
 		Order("users.id").

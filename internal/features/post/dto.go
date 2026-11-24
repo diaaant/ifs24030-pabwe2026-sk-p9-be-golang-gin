@@ -78,6 +78,9 @@ type UserSummary struct {
 	Role           string `json:"role"`
 	TotalPosts     int64  `json:"total_posts"`
 	PublishedPosts int64  `json:"published_posts"`
+
+	TotalArticles  int64 `json:"total_articles"`
+	TotalPublished int64 `json:"total_published"`
 }
 
 // NormalizeCategory memvalidasi kategori (tanpa membedakan huruf besar/kecil).
