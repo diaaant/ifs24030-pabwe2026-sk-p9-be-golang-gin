@@ -188,15 +188,9 @@ func (s *Service) AdminPosts() ([]PostResponse, error) {
 	return toResponses(posts), nil
 }
 
-// AdminUserPosts mengambil seluruh artikel milik satu user.
+// AdminUserPosts mengambil seluruh artikel milik satu user. User yang tidak
+// ada menghasilkan daftar kosong (bukan error).
 func (s *Service) AdminUserPosts(userID uint) ([]PostResponse, error) {
-	exists, err := s.repo.UserExists(userID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, ErrUserNotFound
-	}
 	return s.ListMine(userID)
 }
 

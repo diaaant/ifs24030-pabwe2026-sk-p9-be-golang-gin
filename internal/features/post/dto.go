@@ -39,7 +39,8 @@ type AuthorResponse struct {
 
 // PostResponse adalah representasi artikel untuk klien. Content hanya
 // disertakan pada respons detail. UserID disembunyikan (omitempty) pada
-// respons publik dengan mengosongkannya di service.
+// respons publik dengan mengosongkannya di service. AuthorName adalah nama
+// penulis (username) dalam bentuk string datar untuk klien yang membutuhkannya.
 type PostResponse struct {
 	ID             uint            `json:"id"`
 	UserID         uint            `json:"user_id,omitempty"`
@@ -52,6 +53,7 @@ type PostResponse struct {
 	IsPublished    bool            `json:"is_published"`
 	PublishedAt    *time.Time      `json:"published_at"`
 	ReadingTime    int             `json:"reading_time"`
+	AuthorName     string          `json:"author_name"`
 	Author         *AuthorResponse `json:"author,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
@@ -142,6 +144,7 @@ func toResponse(p *database.Post, withContent bool) PostResponse {
 		resp.Content = p.Content
 	}
 	if p.User != nil {
+		resp.AuthorName = p.User.Username
 		resp.Author = &AuthorResponse{ID: p.User.ID, Username: p.User.Username}
 	}
 	return resp

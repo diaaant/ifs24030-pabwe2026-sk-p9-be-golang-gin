@@ -154,7 +154,9 @@ func TestToResponse_ContentAndAuthor(t *testing.T) {
 	assert.Equal(t, "isi", full.Content)
 	require.NotNil(t, full.Author)
 	assert.Equal(t, "ann", full.Author.Username)
+	assert.Equal(t, "ann", full.AuthorName)
 	assert.Nil(t, toResponse(&database.Post{}, true).Author)
+	assert.Empty(t, toResponse(&database.Post{}, true).AuthorName)
 }
 
 // ---------- repository ----------
@@ -336,18 +338,18 @@ func TestService_ReadErrors(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestService_AdminUserPostsErrors(t *testing.T) {
+func TestService_AdminUserPosts(t *testing.T) {
 	db := newDB(t)
 	repo := NewRepository(db)
 	user := makeUser(t, db, "alice", database.RoleMember)
 
-	_, err := NewService(repo).AdminUserPosts(999)
-	assert.ErrorIs(t, err, ErrUserNotFound)
+	// user yang tidak ada -> daftar kosong, bukan error
+	posts, err := NewService(repo).AdminUserPosts(999)
+	assert.NoError(t, err)
+	assert.NotNil(t, posts)
+	assert.Empty(t, posts)
 
 	_, err = NewService(&failingRepo{repo, map[string]error{"ListByUser": errBoom}}).AdminUserPosts(user.ID)
-	assert.ErrorIs(t, err, errBoom)
-
-	_, err = NewService(&failingRepo{repo, map[string]error{"UserExists": errBoom}}).AdminUserPosts(user.ID)
 	assert.ErrorIs(t, err, errBoom)
 }
 
@@ -441,6 +443,7 @@ func TestHandler_PublicEndpoints(t *testing.T) {
 	first := list[0].(map[string]any)
 	assert.NotContains(t, first, "content") // list tanpa konten
 	assert.Equal(t, "alice", first["author"].(map[string]any)["username"])
+	assert.Equal(t, "alice", first["author_name"])
 
 	_, body = e.call(t, http.MethodGet, "/public/posts?q=golang", nil, nil)
 	assert.Len(t, body["data"], 1)
@@ -584,8 +587,10 @@ func TestHandler_AdminEndpoints(t *testing.T) {
 	_, body = e.call(t, http.MethodGet, "/admin/users/"+jsonID(float64(e.bob.ID))+"/posts", nil, &e.admin)
 	assert.Len(t, body["data"], 1)
 
-	w, _ = e.call(t, http.MethodGet, "/admin/users/999/posts", nil, &e.admin)
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	// user yang tidak ada -> 200 dengan daftar kosong, bukan error
+	w, body = e.call(t, http.MethodGet, "/admin/users/999/posts", nil, &e.admin)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, body["data"])
 }
 
 func TestHandler_InternalServerError(t *testing.T) {
